@@ -38,7 +38,16 @@ npm run preview    # preview the build locally
 
 ## Deployment
 
-Pushing to `main` triggers `.github/workflows/deploy.yml`, which lints, type-checks, builds, and publishes `dist/` to GitHub Pages. The `base` path in `vite.config.ts` (`/pomodoro-timer/`) must match the repository name.
+The site is published to **GitHub Pages** from the `gh-pages` branch (the built `dist/` output). To redeploy after changes:
+
+```bash
+npm run build
+npx gh-pages -d dist        # or push the dist contents to the gh-pages branch
+```
+
+The `base` path in `vite.config.ts` (`/pomodoro-timer/`) must match the repository name.
+
+> A ready-to-use GitHub Actions workflow lives at `ci/deploy.yml`. Move it to `.github/workflows/deploy.yml` and push (requires a token with the `workflow` scope) to switch to fully automated build-and-deploy on every push to `main`.
 
 ## License
 
