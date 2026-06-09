@@ -6,11 +6,15 @@ import { SettingsPanel } from './components/SettingsPanel'
 import { TaskList } from './components/TaskList'
 import { StatsBar } from './components/StatsBar'
 import { ThemeToggle } from './components/ThemeToggle'
+import { ViewTabs, type View } from './components/ViewTabs'
+import { StopwatchView } from './components/StopwatchView'
 import { useSettings } from './hooks/useSettings'
 import { useTheme } from './hooks/useTheme'
 import { useTasks } from './hooks/useTasks'
 import { useStats } from './hooks/useStats'
 import { useTimer } from './hooks/useTimer'
+import { useStopwatch } from './hooks/useStopwatch'
+import { useIntervalChime } from './hooks/useIntervalChime'
 import {
   SESSION_DONE_MESSAGE,
   ensureNotificationPermission,
@@ -19,7 +23,8 @@ import {
   sendNotification,
   unlockAudio,
 } from './lib/notify'
-import { formatTime } from './lib/format'
+import { formatTime, formatStopwatch } from './lib/format'
+import { loadRaw, save } from './lib/storage'
 import { MODE_LABEL, type Mode } from './types'
 
 export default function App() {
@@ -27,7 +32,13 @@ export default function App() {
   const { theme, cycle } = useTheme()
   const tasks = useTasks()
   const stats = useStats()
+  const stopwatch = useStopwatch()
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [view, setView] = useState<View>(() => loadRaw<View>('pomodoro.view', 'pomodoro'))
+
+  useEffect(() => {
+    save('pomodoro.view', view)
+  }, [view])
 
   const handleComplete = useCallback(
     (completed: Mode) => {
@@ -52,37 +63,57 @@ export default function App() {
 
   const timer = useTimer({ settings, onComplete: handleComplete, onTick: handleTick })
 
+  // Periodic "ting" while any timer runs, gated by sound + the interval toggle.
+  useIntervalChime(
+    view === 'pomodoro' ? timer.isRunning : stopwatch.isRunning,
+    settings.intervalChimeMinutes * 60,
+    settings.soundEnabled && settings.intervalChimeEnabled,
+  )
+
   const onToggle = useCallback(() => {
     unlockAudio()
     if (settings.notificationsEnabled) void ensureNotificationPermission()
     timer.toggle()
   }, [settings.notificationsEnabled, timer])
 
+  const onStopwatchToggle = useCallback(() => {
+    unlockAudio()
+    stopwatch.toggle()
+  }, [stopwatch])
+
   // Live countdown in the tab title.
   useEffect(() => {
+    if (view === 'stopwatch') {
+      document.title = stopwatch.isRunning
+        ? `${formatStopwatch(stopwatch.elapsedSeconds)} · Stopwatch`
+        : 'Stopwatch · Pomodoro'
+      return
+    }
     const label = MODE_LABEL[timer.mode]
     document.title = timer.isRunning
       ? `${formatTime(timer.secondsLeft)} · ${label}`
       : `${label} · Pomodoro`
-  }, [timer.secondsLeft, timer.isRunning, timer.mode])
+  }, [view, stopwatch.elapsedSeconds, stopwatch.isRunning, timer.secondsLeft, timer.isRunning, timer.mode])
 
-  // Keyboard shortcuts: Space=toggle, R=reset, S=skip.
+  // Keyboard shortcuts: Space=toggle, R=reset, S=skip (skip is Pomodoro-only).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return
       if (e.code === 'Space') {
         e.preventDefault()
-        onToggle()
+        if (view === 'stopwatch') onStopwatchToggle()
+        else onToggle()
       } else if (e.key.toLowerCase() === 'r') {
-        timer.reset()
-      } else if (e.key.toLowerCase() === 's') {
+        if (view === 'stopwatch') stopwatch.reset()
+        else timer.reset()
+      } else if (e.key.toLowerCase() === 's' && view === 'pomodoro') {
         timer.skip()
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onToggle, timer])
+  }, [view, onToggle, onStopwatchToggle, timer, stopwatch])
 
   return (
     <div className="app" data-mode={timer.mode}>
@@ -100,40 +131,53 @@ export default function App() {
       </header>
 
       <main className="main">
-        <ModeTabs mode={timer.mode} onSwitch={timer.switchMode} />
+        <ViewTabs view={view} onSwitch={setView} />
 
-        <TimerRing
-          secondsLeft={timer.secondsLeft}
-          progress={timer.progress}
-          mode={timer.mode}
-          isRunning={timer.isRunning}
-          round={timer.round}
-          roundsBeforeLong={settings.roundsBeforeLong}
-        />
+        {view === 'pomodoro' ? (
+          <>
+            <ModeTabs mode={timer.mode} onSwitch={timer.switchMode} />
 
-        {tasks.activeTask && (
-          <p className="now-focus">
-            Focusing on <strong>{tasks.activeTask.title}</strong>
-          </p>
+            <TimerRing
+              secondsLeft={timer.secondsLeft}
+              progress={timer.progress}
+              mode={timer.mode}
+              isRunning={timer.isRunning}
+              round={timer.round}
+              roundsBeforeLong={settings.roundsBeforeLong}
+            />
+
+            {tasks.activeTask && (
+              <p className="now-focus">
+                Focusing on <strong>{tasks.activeTask.title}</strong>
+              </p>
+            )}
+
+            <Controls isRunning={timer.isRunning} onToggle={onToggle} onReset={timer.reset} onSkip={timer.skip} />
+
+            <StatsBar today={stats.today} allTime={stats.allTime} totalMinutes={stats.totalMinutes} />
+
+            <TaskList
+              tasks={tasks.tasks}
+              activeId={tasks.activeId}
+              onAdd={tasks.addTask}
+              onToggleDone={tasks.toggleDone}
+              onRemove={tasks.removeTask}
+              onSetActive={tasks.setActiveId}
+              onClearCompleted={tasks.clearCompleted}
+            />
+          </>
+        ) : (
+          <StopwatchView
+            elapsedSeconds={stopwatch.elapsedSeconds}
+            isRunning={stopwatch.isRunning}
+            onToggle={onStopwatchToggle}
+            onReset={stopwatch.reset}
+          />
         )}
-
-        <Controls isRunning={timer.isRunning} onToggle={onToggle} onReset={timer.reset} onSkip={timer.skip} />
-
-        <StatsBar today={stats.today} allTime={stats.allTime} totalMinutes={stats.totalMinutes} />
-
-        <TaskList
-          tasks={tasks.tasks}
-          activeId={tasks.activeId}
-          onAdd={tasks.addTask}
-          onToggleDone={tasks.toggleDone}
-          onRemove={tasks.removeTask}
-          onSetActive={tasks.setActiveId}
-          onClearCompleted={tasks.clearCompleted}
-        />
       </main>
 
       <footer className="footer">
-        <span>Space: start/pause · R: reset · S: skip</span>
+        <span>Space: start/pause · R: reset{view === 'pomodoro' ? ' · S: skip' : ''}</span>
       </footer>
 
       {settingsOpen && (

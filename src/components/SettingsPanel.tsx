@@ -80,6 +80,20 @@ export function SettingsPanel({ settings, onUpdate, onReset, onClose }: Props) {
         <Toggle label="Sound chime" checked={settings.soundEnabled} onChange={(v) => onUpdate('soundEnabled', v)} />
         <Toggle label="Ticking (last 3s)" checked={settings.tickingEnabled} onChange={(v) => onUpdate('tickingEnabled', v)} />
         <Toggle
+          label="Interval chime"
+          checked={settings.intervalChimeEnabled}
+          onChange={(v) => onUpdate('intervalChimeEnabled', v)}
+        />
+        <div className="grid">
+          <NumberField
+            label="Chime every (min)"
+            value={settings.intervalChimeMinutes}
+            min={1}
+            max={120}
+            onChange={(v) => onUpdate('intervalChimeMinutes', v)}
+          />
+        </div>
+        <Toggle
           label="Desktop notifications"
           checked={settings.notificationsEnabled}
           onChange={(v) => onUpdate('notificationsEnabled', v)}

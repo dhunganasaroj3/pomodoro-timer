@@ -235,6 +235,22 @@ body {
   background: var(--accent);
 }
 
+/* ---------- Stopwatch ---------- */
+.stopwatch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+/* Reuses .ring-center's flex layout but not its absolute positioning,
+   since the stopwatch display stands on its own (no SVG ring behind it). */
+.stopwatch-display {
+  position: static;
+  inset: auto;
+  width: 280px;
+  height: 280px;
+}
+
 .now-focus {
   margin: -4px 0 0;
   color: var(--text-dim);

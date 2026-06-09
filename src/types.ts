@@ -12,6 +12,10 @@ export interface Settings {
   soundEnabled: boolean
   notificationsEnabled: boolean
   tickingEnabled: boolean
+  /** chime at a fixed interval while any timer runs */
+  intervalChimeEnabled: boolean
+  /** interval between chimes, in minutes */
+  intervalChimeMinutes: number
 }
 
 export interface Task {
@@ -36,6 +40,8 @@ export const DEFAULT_SETTINGS: Settings = {
   soundEnabled: true,
   notificationsEnabled: true,
   tickingEnabled: false,
+  intervalChimeEnabled: false,
+  intervalChimeMinutes: 5,
 }
 
 export const MODE_LABEL: Record<Mode, string> = {
